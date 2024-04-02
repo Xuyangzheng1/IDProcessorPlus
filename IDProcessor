@@ -1,0 +1,80 @@
+#接受一个xlsx文件路径
+#可对xlsx文件中的身份证列进行校验与处理
+#2024/04/02通过测试
+import pandas as pd
+import os
+from datetime import datetime
+import re
+
+class IDProcessor:
+    def __init__(self):
+        pass
+
+    @staticmethod
+    def validate_id_card(id_card):
+        if len(id_card) != 18:
+            return False
+
+        factors = [7, 9, 10, 5, 8, 4, 2, 1, 6, 3, 7, 9, 10, 5, 8, 4, 2]
+        check_code_mapping = {0: 1, 1: 0, 2: 'X', 3: 9, 4: 8, 5: 7, 6: 6, 7: 5, 8: 4, 9: 3, 10: 2}
+
+        total = sum(int(id_card[i]) * factors[i] for i in range(17))
+        remainder = total % 11
+        check_code = check_code_mapping[remainder]
+
+        return str(check_code).lower() == id_card[17].lower()
+
+    @staticmethod
+    def clean_id(id):
+        return re.sub(r'\s+', '', str(id))
+
+    @staticmethod
+    def calculate_age(id_number):
+        id_number = IDProcessor.clean_id(id_number)
+        if len(id_number) != 18:
+            return "无效的身份证号码"
+
+        birth_date_str = id_number[6:14]
+
+        try:
+            birth_date = datetime.strptime(birth_date_str, '%Y%m%d')
+            today = datetime.now()
+            age = today.year - birth_date.year - ((today.month, today.day) < (birth_date.month, birth_date.day))
+            return age
+        except ValueError:
+            return "无效的身份证号码"
+
+    @staticmethod
+    def determine_gender(id_number):
+        id_number = id_number.strip()
+        if len(id_number) != 18:
+            return "无法确定性别"
+        seventeenth_digit = int(id_number[16])
+        return "男" if seventeenth_digit % 2 == 1 else "女"
+
+    def process_file(self, filename, id_column_name, id_column_header_row):
+        data = pd.read_excel(filename, header=id_column_header_row - 1)
+        data['index'] = range(1, len(data) + 1)
+        data['calculate_age'] = data[id_column_name].apply(self.calculate_age)
+        data['determine_gender'] = data[id_column_name].apply(self.determine_gender)
+        data['validate_id_card'] = data[id_column_name].apply(self.validate_id_card)
+        data['clean_id'] = data[id_column_name].apply(self.clean_id)
+        new_filename = os.path.splitext(filename)[0] + '_processed.xlsx'
+        data.to_excel(new_filename, index=False)
+        print("处理完成，结果保存在", new_filename)
+
+
+if __name__ == "__main__":
+    processor = IDProcessor()
+    #"D:\pandas\319职工大额吴聪\2024职工大额47978原始数据.xlsx"
+    #===================================================================
+    # filename = input("Enter the filename: ")
+    # id_column_name = input("Enter the name of the ID column: ")
+    # id_column_header_row = int(input("Enter the row number where the header is located: "))
+    filename=r"D:\pandas\319职工大额吴聪\2024职工大额47978原始数据.xlsx"
+    id_column_name='*被保险人身份证号码'
+    id_column_header_row=2
+
+
+    #===================================================================
+    processor.process_file(filename, id_column_name, id_column_header_row)
